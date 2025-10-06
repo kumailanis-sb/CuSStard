@@ -305,7 +305,7 @@
     };
 
     try {
-      fetch("https://script.google.com/macros/s/AKfycbwQsjAnDG9DBlD1v5O7hIF5HQeGsUj6Hi1GnHdEZzwuyml7SFVZjCBxuvMmOC4-CgI/exec", {
+      fetch("https://script.google.com/macros/s/AKfycbyGxYmd5lYmwQhFbgpsqeuNgQnFjszFS7btXbTwlZZbhfAh3vAZsygejSBpGr-kqWfY/exec", {
         method: 'POST',
         mode: 'no-cors',
         headers: {
