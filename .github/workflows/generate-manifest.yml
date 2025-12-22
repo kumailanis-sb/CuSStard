@@ -1,0 +1,97 @@
+name: Generate manifest
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Parse slug and write manifest file
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Read issue title/body from the event payload
+          ISSUE_TITLE='${{ github.event.issue.title }}'
+          ISSUE_BODY='${{ github.event.issue.body }}'
+
+          # Accept either:
+          # 1) title: "Add manifest: <slug>"
+          # 2) body line: "slug=<slug>"
+          slug=""
+
+          if [[ "$ISSUE_BODY" =~ slug=([A-Za-z0-9._-]+) ]]; then
+            slug="${BASH_REMATCH[1]}"
+          elif [[ "$ISSUE_TITLE" =~ [Aa]dd[[:space:]]+manifest:\ ([A-Za-z0-9._-]+) ]]; then
+            slug="${BASH_REMATCH[1]}"
+          fi
+
+          if [[ -z "$slug" ]]; then
+            echo "No slug found in title/body."
+            exit 1
+          fi
+
+          # Tighten validation (recommended)
+          if [[ ! "$slug" =~ ^[a-z0-9][a-z0-9-]{0,62}$ ]]; then
+            echo "Invalid slug: $slug"
+            echo "Allowed: lowercase letters, numbers, hyphen. Length 1-63."
+            exit 1
+          fi
+
+          mkdir -p manifests
+          file_path="manifests/${slug}.js"
+
+          cat > "$file_path" <<EOF
+          const cusstard = {
+            "slugName": "${slug}"
+          };
+          EOF
+
+          echo "Wrote $file_path"
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add manifests/*.js
+
+          # If nothing changed, don't fail
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Add manifest for ${{ github.event.issue.number }}"
+          git push
+
+      - name: Comment back and close issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const issue_number = context.payload.issue.number;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            await github.rest.issues.createComment({
+              owner, repo, issue_number,
+              body: "✅ Manifest generated and committed to `manifests/`."
+            });
+
+            await github.rest.issues.update({
+              owner, repo, issue_number,
+              state: "closed"
+            });
